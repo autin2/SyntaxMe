@@ -1,0 +1,119 @@
+:root {
+  --bg: #0e0e0e;
+  --panel: #1a1a1a;
+  --border: #333;
+  --primary: #ff6600; /* orange accent */
+  --text: #f5f5f5;
+  --muted: #aaa;
+}
+
+body {
+  margin: 0;
+  font-family: "JetBrains Mono", monospace;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.site-header, .site-footer {
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+}
+
+.brand-name { color: var(--primary); font-weight: bold; }
+
+.container { max-width: 1000px; margin: auto; padding: 20px; }
+
+h1, h2 { color: var(--primary); }
+
+.btn {
+  background: var(--primary);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+}
+.btn.ghost {
+  background: transparent;
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+.btn:hover { opacity: 0.85; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0;
+  margin-bottom: 20px;
+}
+.panel-head {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-head h2 { margin: 0; font-size: 15px; }
+
+textarea {
+  width: 100%;
+  height: 200px;
+  border: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 0 0 0 40px; /* space for line numbers */
+  box-sizing: border-box;
+  outline: none;
+}
+
+.code-editor {
+  position: relative;
+}
+.line-numbers {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 35px;
+  background: #111;
+  color: var(--muted);
+  text-align: right;
+  padding: 5px;
+  font-size: 14px;
+  line-height: 1.5;
+  font-family: inherit;
+  user-select: none;
+  overflow: hidden;
+}
+
+.codeblock {
+  background: #111;
+  padding: 15px;
+  font-size: 14px;
+  overflow-x: auto;
+  white-space: pre;
+  border-radius: 6px;
+}
+
+.options {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.report {
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+  padding: 10px;
+  color: var(--muted);
+}
+.badge { background: var(--primary); color: #000; padding: 2px 6px; border-radius: 4px; }
