@@ -1,86 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
-  <!-- Vercel Web Analytics -->
-<script>
-  window.va = window.va || function(){ (window.vaq = window.vaq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
-
-  
-<link rel="icon" type="image/png" href="/img/favicon.png">
-
+  <link rel="icon" type="image/png" href="/img/favico.png">
   <meta name="google-adsense-account" content="ca-pub-1830306161200087">
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Syntax Me — Nesting Fixer</title>
   <meta name="description" content="Paste messy HTML/CSS/JS and get clean, human-readable indentation and nesting."/>
-  <style>
-    :root {
-      --bg: #0e0e0e;
-      --panel: #1a1a1a;
-      --panel-2: #141414;
-      --border: #2a2a2a;
-      --primary: #ff6a00;
-      --text: #f3f3f3;
-      --muted: #a8a8a8;
-      --code: #0f0f0f;
-      --radius: 8px;
-      --shadow: 0 8px 28px rgba(0,0,0,.35);
-      --max: 1060px;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--text);
-      background: var(--bg); /* removed orange radial gradient */
-      font: 14px/1.55 "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
-    }
-    .container { max-width: var(--max); margin: 0 auto; padding: 0 18px; }
-    .site-header, .site-footer { background: var(--panel); border-bottom: 1px solid var(--border); }
-    .site-footer { border-top: 1px solid var(--border); border-bottom: none; }
-    .nav { height: 60px; display: flex; align-items: center; justify-content: space-between; }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 900; }
-    .brand-name { color: var(--primary); letter-spacing: .3px; }
-    .logo { width: 22px; height: 22px; border-radius: 6px; background: conic-gradient(from 20deg,#ff6a00,#ffb86c,#ff6a00); box-shadow: 0 6px 14px rgba(255,106,0,.45); }
-    .links a { color: var(--muted); text-decoration: none; margin-left: 14px; }
-    h1, h2 { color: var(--primary); margin: 0; }
-    .intro { padding: 22px 0 10px; }
-    .intro p { margin: 8px 0 0; color: var(--muted); }
-    .workbench { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0 28px; }
-    @media (max-width: 980px){ .workbench { grid-template-columns: 1fr; } }
-    .panel {
-      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-    .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--panel-2); border-bottom: 1px solid var(--border); }
-    .panel-head h2 { font-size: 14px; }
-    .panel .body { padding: 12px; }
-    .btn { appearance: none; border: 1px solid var(--border); background: #151515; color: var(--text); padding: 8px 12px; border-radius: 7px; cursor: pointer; font-weight: 700; }
-    .btn.primary { background: linear-gradient(135deg,#ff6a00,#ff944d); border-color: transparent; color: #0e0e0e; }
-    .btn.ghost { background: transparent; color: var(--primary); border-color: var(--primary); }
-    .btn:hover { filter: brightness(1.03); }
-    .code-editor { position: relative; background: var(--code); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
-    .line-numbers {
-      position: absolute; inset: 0 auto 0 0; width: 44px; background: #121212; color: #808080;
-      text-align: right; padding: 10px 8px 10px 6px; white-space: pre; user-select: none; pointer-events: none;
-      border-right: 1px solid var(--border); overflow: hidden; line-height: 1.55; font-size: 13px;
-    }
-    textarea#input {
-      width: 100%; min-height: 320px; resize: vertical; border: none; outline: none;
-      background: transparent; color: var(--text); font: 13px/1.55 inherit;
-      padding: 10px 12px 10px 58px; caret-color: var(--primary); tab-size: 2;
-    }
-    .codeblock { background: var(--code); border: 1px solid var(--border); border-radius: 7px; padding: 12px; min-height: 320px; overflow: auto; white-space: pre; font: 13px/1.55 inherit; }
-    .footer-row { margin-top: 10px; display: flex; gap: 10px; }
-    .report { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding: 10px 0 0; border-top: 1px dashed var(--border); color: var(--muted); font-size: 13px; }
-    .badge { background: var(--primary); color: #0c0c0c; padding: 2px 8px; border-radius: 12px; font-weight: 900; }
-    .site-footer { padding: 14px 0 24px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); }
-  </style>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <header class="site-header">
@@ -98,7 +25,7 @@
   <main class="container">
     <section class="intro">
       <h1>Fix broken indentation — instantly</h1>
-      <p>Detects <strong>HTML/CSS/JS</strong>, More languages will be added soon, This is an MVP </p>
+      <p>Detects <strong>HTML/CSS/JS</strong>, More languages will be added soon, This is an MVP</p>
     </section>
 
     <section class="workbench">
@@ -129,6 +56,8 @@
           <div class="actions">
             <button class="btn ghost" id="copyBtn">Copy</button>
             <button class="btn ghost" id="downloadBtn">Download</button>
+            <!-- New pill button, only shown when output is long -->
+            <button class="btn pill" id="viewMoreBtn" hidden>View more</button>
           </div>
         </div>
         <div class="body">
@@ -154,17 +83,21 @@
 <!DOCTYPE html><html><head><meta charset="utf-8"><title>Mini Test</title><style>body{margin:0;background:#111;color:#eee}#app{padding:12px 16px}h1{margin:0 0 8px;color:orange}button{border:0;padding:6px 10px;border-radius:6px}button.primary{background:orange;color:#111}</style></head><body><div id=app><h1>Hello <em>World</em></h1><p>Count: <span id=count>0</span></p><button class=primary id=inc>+1</button> <button id=reset>reset</button></div><script>const $=s=>document.querySelector(s); let n=0;function render(){ $('#count').textContent=n }document.getElementById('inc').addEventListener('click',()=>{ n++; render() })document.getElementById('reset').addEventListener('click',()=>{ n=0; render() })render()</script></body></html>
   </textarea>
 
+  <!-- Full output modal -->
+  <div id="viewerModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="viewerTitle">
+      <div class="modal-bar">
+        <h3 id="viewerTitle">Full Output</h3>
+        <div style="flex:1"></div>
+        <button class="btn ghost" id="copyFullBtn">Copy</button>
+        <button class="btn" id="closeModal">Close</button>
+      </div>
+      <pre class="modal-code" id="fullOutput"></pre>
+    </div>
+  </div>
+
   <!-- App logic -->
   <script src="formatter.js" defer></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
