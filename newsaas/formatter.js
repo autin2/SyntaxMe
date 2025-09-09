@@ -1,398 +1,444 @@
-// formatter.js — expanded, readable output for HTML/CSS/JS with Prettier-like spacing and semicolons
+// formatter.js — Syntax Me (Nesting Fixer)
+// Plain JS: format HTML/CSS/JS, manage UI, and handle "View more" modal.
 
-// === Elements ===
-const $ = s => document.querySelector(s);
-const input = $('#input');
-const gutter = $('#gutter');
-const output = $('#output');
-const charsIn = $('#charsIn');
-const charsOut = $('#charsOut');
-const changesEl = $('#changes');
-const detectedEl = $('#detected');
+/* ------------------ DOM Helpers ------------------ */
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
-// === UI helpers ===
-function updateLineNumbers() {
-  const n = (input.value.match(/\n/g) || []).length + 1;
-  gutter.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n');
-}
-function setDetected(label) {
-  detectedEl.textContent = 'Detected: ' + (label || '—');
-}
+/* ------------------ Elements ------------------ */
+const inputEl     = $('#input');
+const gutterEl    = $('#gutter');
+const outputEl     = $('#output');
+const sampleEl     = $('#sample');
 
-// === Language detection (heuristic) ===
-function detectLanguage(raw) {
-  const t = raw.trim();
-  if (!t) return 'unknown';
+const fixBtn       = $('#fixBtn');
+const loadSampleBtn= $('#loadSample');
+const clearBtn     = $('#clearInput');
+const copyBtn      = $('#copyBtn');
+const downloadBtn  = $('#downloadBtn');
 
-  const isHTML =
-    /<!doctype|<html[\s>]|<head[\s>]|<body[\s>]|<\/\w+>|<\w+[\s\S]*?>/i.test(t) &&
-    /<\w+[\s\S]*?>/.test(t);
-  if (isHTML) return 'html';
+const detectedEl   = $('#detected');
+const charsInEl    = $('#charsIn');
+const charsOutEl   = $('#charsOut');
+const changesEl    = $('#changes');
+const yearEl       = $('#year');
 
-  const noComments = t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  const isCSS =
-    /[{}]/.test(noComments) &&
-    /[.#@a-zA-Z\-\_\*][^{]+\{[^}]*\}/.test(noComments) &&
-    !/function\s|\b(const|let|var)\b|=>|\bclass\s/.test(noComments);
-  if (isCSS) return 'css';
+/* ------------------ Utilities ------------------ */
+const VOID_HTML = new Set([
+  'area','base','br','col','embed','hr','img','input','link',
+  'meta','param','source','track','wbr'
+]);
 
-  const isJS =
-    /\b(const|let|var|function|class|import|export|return|if|for|while|switch|try|=>)\b/.test(t) ||
-    /[{}();]/.test(t);
-  if (isJS) return 'javascript';
+const INDENT = (n) => '  '.repeat(Math.max(0, n)); // 2 spaces
 
-  return 'unknown';
+function clamp(n, lo, hi){ return Math.max(lo, Math.min(hi, n)); }
+
+function getYear(){ try { return new Date().getFullYear(); } catch { return 2025; } }
+
+function extFor(kind){
+  if (kind === 'html') return 'html';
+  if (kind === 'css')  return 'css';
+  return 'js';
 }
 
-// === CSS formatter (expanded, one property per line, normalized ": ") ===
-function formatCSS(raw) {
-  let out = '', indent = 0;
-  const IND = l => '  '.repeat(l);
-  let i = 0, inStr = false, strCh = '', inCmt = false, buf = '';
+function detectKind(text){
+  const t = text.trim();
+  if (/<[a-z!/]/i.test(t)) return 'html';
+  if (!/<[a-z]/i.test(t) && /{[^}]*}/.test(t) && /:/.test(t)) return 'css';
+  return 'js';
+}
 
-  const fmtDecl = (d) => {
-    const m = d.match(/^([^:]+):\s*(.+)$/);
-    if (m) return m[1].trim() + ': ' + m[2].trim();
-    return d.trim();
+/* ------------------ Formatters ------------------ */
+// CSS pretty-printer (minimal, brace/semicolon aware)
+function cssPretty(src){
+  let out = '';
+  let buf = '';
+  let indent = 0;
+  let inStr = false, strCh = null;
+  let inComm = false;
+
+  const flush = () => {
+    const trimmed = buf.trim();
+    if (trimmed) out += INDENT(indent) + trimmed + '\n';
+    buf = '';
   };
 
-  while (i < raw.length) {
-    const ch = raw[i], nx = raw[i + 1];
+  for (let i=0; i<src.length; i++){
+    const ch = src[i], nx = src[i+1];
 
     // comments
-    if (!inStr && !inCmt && ch === '/' && nx === '*') { inCmt = true; buf += '/*'; i += 2; continue; }
-    if (inCmt) { buf += ch; if (ch === '*' && nx === '/') { buf += '/'; i += 2; inCmt = false; } else { i++; } continue; }
+    if (!inStr && !inComm && ch === '/' && nx === '*'){ inComm = true; i++; buf += '/*'; continue; }
+    if (inComm){
+      buf += ch;
+      if (ch === '*' && nx === '/'){ buf += '/'; i++; inComm = false; }
+      continue;
+    }
 
     // strings
-    if (!inStr && (ch === '"' || ch === "'")) { inStr = true; strCh = ch; buf += ch; i++; continue; }
-    if (inStr) { buf += ch; if (ch === '\\') { buf += raw[i + 1] || ''; i += 2; continue; } if (ch === strCh) { inStr = false; } i++; continue; }
+    if (!inStr && (ch === '"' || ch === "'")){ inStr = true; strCh = ch; buf += ch; continue; }
+    if (inStr){
+      buf += ch;
+      if (ch === '\\'){ buf += src[++i] || ''; continue; }
+      if (ch === strCh){ inStr = false; strCh = null; }
+      continue;
+    }
 
-    // open block
-    if (ch === '{') {
-      const selector = buf.trim();
-      out += selector + ' {\n';
-      buf = '';
+    if (ch === '{'){
+      const pre = buf.trim();
+      if (pre){ out += INDENT(indent) + pre + ' {\n'; buf = ''; }
+      else { out += INDENT(indent) + '{\n'; }
       indent++;
-      i++;
-      out += IND(indent);
       continue;
     }
 
-    // close block
-    if (ch === '}') {
-      if (buf.trim()) {
-        const decls = buf.split(';').map(s => s.trim()).filter(Boolean);
-        for (const d of decls) out += fmtDecl(d) + ';\n' + IND(indent);
-        buf = '';
-      }
-      // Trim trailing spaces/indent before closing brace
-      out = out.replace(/[ \t]+$/, '');
-      if (!out.endsWith('\n')) out += '\n';
-      indent--;
-      out += IND(indent) + '}\n' + IND(indent);
-      i++;
+    if (ch === '}'){
+      flush();
+      indent = Math.max(0, indent-1);
+      out += INDENT(indent) + '}\n';
       continue;
     }
 
-    // declaration end
-    if (ch === ';') {
-      const decl = buf.trim();
-      if (decl) out += fmtDecl(decl) + ';\n' + IND(indent);
-      buf = '';
-      i++;
+    if (ch === ';'){
+      buf += ';';
+      flush();
       continue;
     }
 
-    // collapse newlines in buffer
-    if (ch === '\n' || ch === '\r') { buf += ' '; i++; continue; }
+    // normalize spaces around colon (light)
+    if (ch === ':'){
+      buf = buf.trimEnd() + ': ';
+      continue;
+    }
+
+    if (ch === '\n' || ch === '\r'){
+      // collapse raw newlines into spaces inside buf
+      if (buf.endsWith(' ') === false) buf += ' ';
+      continue;
+    }
 
     buf += ch;
-    i++;
   }
-
-  if (buf.trim()) {
-    const trailing = buf.split(';').map(s => s.trim()).filter(Boolean);
-    for (const d of trailing) out += fmtDecl(d) + ';\n' + IND(indent);
-  }
-
-  return out.trim() + '\n';
+  flush();
+  return out.trimEnd();
 }
 
-// === JS formatter (readable) + style polish (spaces & semicolons) ===
-function formatJS(raw) {
-  let out = '', indent = 0;
-  const IND = l => '  '.repeat(l);
-  let i = 0, inStr = false, strCh = '', inTpl = false, tplDepth = 0, inSL = false, inML = false;
-  let prevSig = '';
+// JS pretty-printer (very light, brace/semicolon aware)
+function jsPretty(src){
+  let out = '';
+  let buf = '';
+  let indent = 0;
 
-  function nl(){ out = out.trimEnd() + '\n' + IND(indent); }
-  function emit(c){ out += c; if (!/\s/.test(c)) prevSig = c; }
+  let inStr = false, strCh = null;
+  let inTpl = false;
+  let inComm = false, lineComm = false;
 
-  while (i < raw.length) {
-    const ch = raw[i], nx = raw[i + 1];
+  const flush = () => {
+    const t = buf.trim();
+    if (t) out += INDENT(indent) + t + '\n';
+    buf = '';
+  };
 
-    // // comment
-    if (!inStr && !inTpl && !inSL && !inML && ch === '/' && nx === '/') { inSL = true; emit('/'); emit('/'); i += 2; continue; }
-    if (inSL) { emit(ch); if (ch === '\n') { inSL = false; } i++; continue; }
+  for (let i=0; i<src.length; i++){
+    const ch = src[i], nx = src[i+1];
 
-    // /* comment */
-    if (!inStr && !inTpl && !inSL && !inML && ch === '/' && nx === '*') { inML = true; emit('/'); emit('*'); i += 2; continue; }
-    if (inML) { emit(ch); if (ch === '*' && nx === '/') { emit('/'); i += 2; inML = false; } else { i++; } continue; }
-
-    // strings
-    if (!inTpl && !inStr && (ch === '"' || ch === "'")) { inStr = true; strCh = ch; emit(ch); i++; continue; }
-    if (inStr) { emit(ch); if (ch === '\\') { emit(raw[i + 1] || ''); i += 2; continue; } if (ch === strCh) { inStr = false; } i++; continue; }
-
-    // template literals
-    if (!inTpl && ch === '`') { inTpl = true; emit(ch); i++; continue; }
-    if (inTpl) {
-      emit(ch);
-      if (ch === '\\') { emit(raw[i + 1] || ''); i += 2; continue; }
-      if (ch === '$' && nx === '{') { emit('{'); tplDepth++; i += 2; continue; }
-      if (ch === '}') { if (tplDepth > 0) tplDepth--; }
-      if (ch === '`' && tplDepth === 0) { inTpl = false; }
-      i++;
+    // line comment //
+    if (!inStr && !inTpl && !inComm && ch === '/' && nx === '/'){
+      lineComm = true; i++;
+      buf = buf.trimEnd();
+      // move comment to end of line
+      let comment = '//';
+      while (i+1 < src.length && src[i+1] !== '\n'){ i++; comment += src[i]; }
+      if (buf){ out += INDENT(indent) + buf + ' ' + comment + '\n'; buf=''; }
+      else    { out += INDENT(indent) + comment + '\n'; }
       continue;
     }
 
-    // structure
-    if (ch === '{') { out = out.trimEnd() + ' {'; indent++; nl(); i++; prevSig = '{'; continue; }
-    if (ch === '}') { indent--; nl(); emit('}'); i++; continue; }
-
-    // semicolon (preserve existing)
-    if (ch === ';') { out = out.trimEnd() + ';'; nl(); i++; prevSig = ';'; continue; }
-
-    // whitespace → single space
-    if (/\s/.test(ch)) { if (!/\s/.test(out.slice(-1))) out += ' '; i++; continue; }
-
-    // break between statements
-    if ((prevSig === ')' || prevSig === '}' || prevSig === ';') && /[A-Za-z_$]/.test(ch)) { nl(); }
-
-    emit(ch);
-    i++;
-  }
-
-  // Post-process: Prettier-like spacing and cautious semicolons
-  return jsStylePolish(out.trim() + '\n');
-}
-
-// Add spaces around "=" (not ==, ===, <=, >=, !=, !==, =>) and around "=>", then add safe semicolons
-function jsStylePolish(code) {
-  // spaces around =>
-  code = code.replace(/\s*=>\s*/g, ' => ');
-
-  // spaces around single "=" (exclude ==, ===, <=, >=, !=, !==, =>)
-  code = code.replace(
-    /(?<![=!<>+\-*/%&|^~?:])=(?![=>=])/g, // not preceded by comparator/op, not followed by > or =
-    ' = '
-  );
-
-  // normalize multiple spaces around "=" to one (just in case)
-  code = code.replace(/\s+=\s+/g, ' = ');
-
-  // Add semicolons at safe statement boundaries
-  const lines = code.split('\n');
-  const keywordsHead = /^(if|for|while|switch|with|catch|try|finally|do|else|class|function)\b/;
-  const bareControl = /^(return|throw|yield|continue|break)\s*$/;
-
-  for (let idx = 0; idx < lines.length; idx++) {
-    let L = lines[idx];
-    const t = L.trim();
-
-    if (!t || t.startsWith('//') || t.startsWith('/*') || t.endsWith('*/')) continue;
-    if (keywordsHead.test(t)) continue; // don't add after control headers
-    if (bareControl.test(t)) continue;  // "return" alone etc.
-
-    // already ended
-    if (/[;{}:,]$/.test(t)) continue;
-    if (/\belse$/.test(t)) continue;
-    if (/\)$/.test(t)) {
-      // If the next non-empty line starts with "{", it's likely a control header or call followed by block — skip
-      const next = findNextNonEmpty(lines, idx + 1);
-      if (next && next.trim().startsWith('{')) continue;
+    // block comment /* */
+    if (!inStr && !inTpl && !inComm && ch === '/' && nx === '*'){ inComm = true; i++; buf += '/*'; continue; }
+    if (inComm){
+      buf += ch;
+      if (ch === '*' && nx === '/'){ buf += '/'; i++; inComm = false; }
+      continue;
     }
 
-    // ends with likely expression token → add semicolon
-    if (/[\)\]\w'"]$/.test(t) || /`$/.test(t)) {
-      L = L.replace(/\s+$/, '') + ';';
+    // strings & template literals
+    if (!inTpl && !inStr && (ch === '"' || ch === "'")){ inStr = true; strCh = ch; buf += ch; continue; }
+    if (inStr){
+      buf += ch;
+      if (ch === '\\'){ buf += src[++i] || ''; continue; }
+      if (ch === strCh){ inStr = false; strCh = null; }
+      continue;
     }
-    lines[idx] = L;
-  }
-
-  return lines.join('\n');
-}
-
-function findNextNonEmpty(lines, start) {
-  for (let i = start; i < lines.length; i++) {
-    if (lines[i].trim()) return lines[i];
-  }
-  return '';
-}
-
-// === HTML serializer (expanded blocks, inline text preserved; <head> never single-lined) ===
-const VOID = new Set(['area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr']);
-
-function attrString(el) {
-  const a = [];
-  for (const x of el.attributes) a.push(`${x.name}="${String(x.value).replace(/"/g,'&quot;')}"`);
-  return a.length ? ' ' + a.join(' ') : '';
-}
-function isBlock(tag) {
-  return new Set([
-    'html','head','body','article','section','nav','aside','header','footer','main','div','p','pre',
-    'ul','ol','li','dl','dt','dd','table','thead','tbody','tfoot','tr','td','th','figure','figcaption',
-    'h1','h2','h3','h4','h5','h6','blockquote','form','fieldset','details','summary','hr'
-  ]).has(tag);
-}
-function shouldPreserve(el) {
-  const t = (el.tagName || '').toLowerCase();
-  return t === 'pre' || t === 'textarea';
-}
-function collapseText(s) { return s.replace(/\s+/g, ' '); }
-
-function serializeNode(node, indent = 0, inPreserve = false) {
-  const IND = '  '.repeat(indent);
-
-  if (node.nodeType === Node.DOCUMENT_TYPE_NODE) return '<!DOCTYPE html>\n';
-
-  if (node.nodeType === Node.DOCUMENT_NODE) {
-    let s = '';
-    if (node.doctype) s += serializeNode(node.doctype, 0, false);
-    s += serializeNode(node.documentElement, 0, false);
-    return s;
-  }
-
-  if (node.nodeType === Node.ELEMENT_NODE) {
-    const tag = node.tagName.toLowerCase();
-
-    // voids single-line
-    if (VOID.has(tag)) return IND + '<' + tag + attrString(node) + '>\n';
-
-    // style/script blocks (format inner content)
-    if (tag === 'style') {
-      const open = '<style' + attrString(node) + '>';
-      const close = '</style>';
-      const content = formatCSS(node.textContent) + IND; // no leading newline
-      return IND + open + '\n' + content + close + '\n';
+    if (!inStr && ch === '`'){
+      inTpl = !inTpl; buf += ch; continue;
     }
-    if (tag === 'script') {
-      const open = '<script' + attrString(node) + '>';
-      const close = '</scr' + 'ipt>'; // safe when inlined
-      const content = formatJS(node.textContent) + IND; // no leading newline
-      return IND + open + '\n' + content + close + '\n';
+    if (inTpl){
+      buf += ch;
+      if (ch === '\\'){ buf += src[++i] || ''; }
+      continue;
     }
 
-    const open = '<' + tag + attrString(node) + '>';
-    const close = '</' + tag + '>';
+    if (ch === '{'){
+      const t = buf.trim();
+      if (t){ out += INDENT(indent) + t + ' {\n'; buf=''; }
+      else  { out += INDENT(indent) + '{\n'; }
+      indent++;
+      continue;
+    }
+    if (ch === '}'){
+      const t = buf.trim();
+      if (t){ out += INDENT(indent) + t + '\n'; buf=''; }
+      indent = Math.max(0, indent-1);
+      out += INDENT(indent) + '}\n';
+      continue;
+    }
+    if (ch === ';'){
+      buf += ';';
+      flush();
+      continue;
+    }
+    if (ch === '\n' || ch === '\r'){
+      if (buf.trim()){ flush(); }
+      continue;
+    }
+    buf += ch;
+  }
+  if (buf.trim()) flush();
+  return out.trimEnd();
+}
 
-    const preserve = inPreserve || shouldPreserve(node);
-    let body = '';
-    let hasBlockChild = false;
+// HTML pretty-printer (token-based, preserves <script>/<style> blocks)
+function htmlPretty(src){
+  const tokens = src.split(/(<[^>]+>)/g); // keep tags
+  let out = [];
+  let indent = 0;
 
-    node.childNodes.forEach(ch => {
-      if (ch.nodeType === Node.TEXT_NODE) {
-        let t = ch.nodeValue;
-        if (!preserve) {
-          t = collapseText(t);
-          if (!t.trim()) return;
-          body += '  '.repeat(indent + 1) + t.trim() + '\n';
-        } else {
-          body += t;
-        }
-      } else if (ch.nodeType === Node.COMMENT_NODE) {
-        body += '  '.repeat(indent + 1) + '<!--' + ch.nodeValue + '-->\n';
-      } else {
-        body += serializeNode(ch, indent + 1, preserve);
-        const ct = ch.nodeType === Node.ELEMENT_NODE ? ch.tagName.toLowerCase() : '';
-        if (ct && isBlock(ct)) hasBlockChild = true;
+  function tagName(tag){
+    return (tag.match(/^<\s*\/?\s*([a-zA-Z0-9:-]+)/) || [,''])[1].toLowerCase();
+  }
+  function isClosing(tag){ return /^<\s*\//.test(tag); }
+  function isComment(tag){ return /^<!--/.test(tag); }
+  function isDoctype(tag){ return /^<!doctype/i.test(tag) || /^<\?xml/i.test(tag); }
+  function isSelfClosing(tag){
+    const tn = tagName(tag);
+    return /\/\s*>$/.test(tag) || VOID_HTML.has(tn);
+  }
+
+  for (let i=0; i<tokens.length; i++){
+    let t = tokens[i];
+    if (!t) continue;
+
+    if (t.startsWith('<')){
+      const tn = tagName(t);
+
+      // comments / doctype
+      if (isComment(t) || isDoctype(t)){
+        out.push(INDENT(indent) + t.trim());
+        continue;
       }
-    });
 
-    // Collapse inline-only lines — never for <head>
-    if (!hasBlockChild && body.trim() && !preserve && tag !== 'head') {
-      const inner = body.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-      return IND + open + inner + close + '\n';
+      // closing tag
+      if (isClosing(t)){
+        indent = Math.max(0, indent-1);
+        out.push(INDENT(indent) + t.trim());
+        continue;
+      }
+
+      // <script> or <style> collect block
+      if (tn === 'script' || tn === 'style'){
+        const open = t.trim();
+        const closeNeedle = `</${tn}`;
+        out.push(INDENT(indent) + open);
+        indent++;
+        let inner = '';
+        // collect until closing tag token
+        for (i=i+1; i<tokens.length; i++){
+          const tk = tokens[i];
+          if (tk && tk.toLowerCase().startsWith(closeNeedle)){
+            // we are at the closing tag; step back one so outer loop can handle t=closing
+            i--; break;
+          }
+          inner += tk || '';
+        }
+        // pretty inner if style, keep structure for script
+        let prettyInner = (tn === 'style') ? cssPretty(inner) : inner.trim();
+        if (prettyInner){
+          for (const line of prettyInner.split('\n')){
+            out.push(INDENT(indent) + line);
+          }
+        }
+        indent = Math.max(0, indent-1);
+        // advance to closing tag (outer loop will consume it next iteration)
+        continue;
+      }
+
+      // self-closing or void
+      if (isSelfClosing(t)){
+        out.push(INDENT(indent) + t.trim());
+        continue;
+      }
+
+      // opening tag
+      out.push(INDENT(indent) + t.trim());
+      indent++;
+    } else {
+      // text node -> collapse excessive whitespace but keep meaningful text
+      const text = t.replace(/\s+/g, ' ').trim();
+      if (text) out.push(INDENT(indent) + text);
     }
-
-    return IND + open + '\n' + body + IND + close + '\n';
   }
 
-  if (node.nodeType === Node.TEXT_NODE) {
-    return inPreserve ? node.nodeValue : collapseText(node.nodeValue).trim();
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
+}
+
+/* ------------------ Orchestrator ------------------ */
+function formatText(raw){
+  const kind = detectKind(raw);
+  let pretty = raw;
+  try {
+    if (kind === 'html') pretty = htmlPretty(raw);
+    else if (kind === 'css') pretty = cssPretty(raw);
+    else pretty = jsPretty(raw);
+  } catch (e){
+    // fallback: keep original if formatter failed
+    pretty = raw;
+    console.warn('Formatter error:', e);
   }
-
-  if (node.nodeType === Node.COMMENT_NODE) {
-    return '  '.repeat(indent) + '<!--' + node.nodeValue + '-->\n';
-  }
-
-  return '';
+  return { kind, pretty };
 }
 
-function formatHTML(raw) {
-  const doc = new DOMParser().parseFromString(raw, 'text/html');
-  return (serializeNode(doc)).trim() + '\n';
+/* ------------------ Input Gutter (line numbers) ------------------ */
+function updateGutter(){
+  const lines = (inputEl.value.match(/\n/g) || []).length + 1;
+  gutterEl.textContent = Array.from({length: lines}, (_,i)=>i+1).join('\n');
+}
+function syncScroll(){ gutterEl.scrollTop = inputEl.scrollTop; }
+
+/* ------------------ Actions ------------------ */
+function doFix(){
+  const raw = inputEl.value;
+  const { kind, pretty } = formatText(raw);
+
+  outputEl.textContent = pretty;
+
+  detectedEl.textContent = `Detected: ${kind.toUpperCase()}`;
+  charsInEl.textContent  = String(raw.length);
+  charsOutEl.textContent = String(pretty.length);
+  const lineDelta = Math.max(0, pretty.split('\n').length - raw.split('\n').length);
+  changesEl.textContent  = String(lineDelta);
+
+  // Re-check the "View more" control after render
+  window.updateViewMore?.();
 }
 
-// === Orchestrator ===
-function normalize(raw) {
-  const lang = detectLanguage(raw);
-  let fixed = raw;
-
-  if (lang === 'html') fixed = formatHTML(raw);
-  else if (lang === 'css') fixed = formatCSS(raw);
-  else if (lang === 'javascript') fixed = formatJS(raw);
-  else fixed = raw.trim() + (raw.trim() ? '\n' : '');
-
-  return { lang, fixed };
+function loadSample(){
+  if (!sampleEl) return;
+  inputEl.value = sampleEl.value.trim();
+  updateGutter();
+  doFix();
 }
 
-function analyze(raw, fixed, lang) {
-  charsIn.textContent = raw.length;
-  charsOut.textContent = fixed.length;
-  changesEl.textContent = (raw.trim() === fixed.trim()) ? '0' : '1';
-  setDetected(lang === 'unknown' ? 'Unknown' : (lang === 'javascript' ? 'JavaScript' : lang.toUpperCase()));
+function clearAll(){
+  inputEl.value = '';
+  updateGutter();
+  outputEl.textContent = '';
+  detectedEl.textContent = 'Detected: —';
+  charsInEl.textContent = '0';
+  charsOutEl.textContent = '0';
+  changesEl.textContent = '0';
+  window.updateViewMore?.();
 }
 
-// === Actions ===
-function fixNow() {
-  const raw = input.value;
-  const { lang, fixed } = normalize(raw);
-  output.textContent = fixed;
-  analyze(raw, fixed, lang);
-}
-function copyOutput() {
-  const txt = output.textContent;
-  if (!txt) return;
-  navigator.clipboard.writeText(txt).catch(()=>{});
-}
-function downloadOutput() {
-  const txt = output.textContent || '';
-  const lang = detectLanguage(txt);
-  const ext = lang === 'html' ? 'html' : lang === 'css' ? 'css' : lang === 'javascript' ? 'js' : 'txt';
-  const blob = new Blob([txt], {type:'text/plain;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `fixed.${ext}`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
+async function copyOutput(){
+  try {
+    await navigator.clipboard.writeText(outputEl.textContent || '');
+    // optional: brief UI feedback
+    copyBtn.textContent = 'Copied';
+    setTimeout(()=> copyBtn.textContent = 'Copy', 900);
+  } catch {}
 }
 
-// === Events ===
-const SAMPLE = (document.getElementById('sample')?.value || '').trim();
-document.getElementById('loadSample').addEventListener('click', () => { input.value = SAMPLE; updateLineNumbers(); });
-document.getElementById('clearInput').addEventListener('click', () => {
-  input.value = '';
-  updateLineNumbers();
-  output.textContent = '';
-  setDetected('—');
-  analyze('', '', 'unknown');
+function downloadOutput(){
+  const txt = outputEl.textContent || '';
+  const kind = (detectedEl.textContent.split(':')[1] || '').trim().toLowerCase() || detectKind(txt);
+  const filename = `formatted.${extFor(kind)}`;
+
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  a.remove(); URL.revokeObjectURL(url);
+}
+
+/* ------------------ View More / Modal (robust) ------------------ */
+const viewMoreBtn   = $('#viewMoreBtn');
+const modal         = $('#viewerModal');
+const fullOutputEl  = $('#fullOutput');
+const closeModalBtn = $('#closeModal');
+const copyFullBtn   = $('#copyFullBtn');
+const modalBackdrop = $('#modalBackdrop');
+
+function reallyOverflowing(el) {
+  const tooTall = el.scrollHeight > el.clientHeight + 1;
+  const tooWide = el.scrollWidth  > el.clientWidth  + 1;
+  const tooLong = (el.textContent || '').length > 4000;
+  return tooTall || tooWide || tooLong;
+}
+function refreshViewMore() {
+  if (!outputEl || !viewMoreBtn) return;
+  viewMoreBtn.hidden = !reallyOverflowing(outputEl);
+}
+function rafRefresh() {
+  requestAnimationFrame(() => requestAnimationFrame(refreshViewMore));
+}
+// Expose hook to call after output updates
+window.updateViewMore = rafRefresh;
+
+// Observe changes to #output so button toggles automatically
+if (outputEl) {
+  new MutationObserver(rafRefresh)
+    .observe(outputEl, { childList: true, characterData: true, subtree: true });
+}
+
+// Show modal
+viewMoreBtn?.addEventListener('click', () => {
+  fullOutputEl.textContent = outputEl.textContent || '';
+  modal.setAttribute('open','');
+  modal.setAttribute('aria-hidden','false');
+  document.body.style.overflow = 'hidden';
 });
-document.getElementById('fixBtn').addEventListener('click', fixNow);
-document.getElementById('copyBtn').addEventListener('click', copyOutput);
-document.getElementById('downloadBtn').addEventListener('click', downloadOutput);
-input.addEventListener('input', updateLineNumbers);
-input.addEventListener('scroll', () => { gutter.scrollTop = input.scrollTop; });
 
-// Init
-updateLineNumbers();
-document.getElementById('year').textContent = new Date().getFullYear();
+// Close modal
+function closeModal() {
+  modal.removeAttribute('open');
+  modal.setAttribute('aria-hidden','true');
+  document.body.style.overflow = '';
+}
+closeModalBtn?.addEventListener('click', closeModal);
+modalBackdrop?.addEventListener('click', closeModal);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+// Copy full code
+copyFullBtn?.addEventListener('click', () => {
+  navigator.clipboard.writeText(fullOutputEl.textContent || '');
+});
+
+/* ------------------ Wire Up ------------------ */
+document.addEventListener('DOMContentLoaded', () => {
+  if (yearEl) yearEl.textContent = String(getYear());
+
+  inputEl?.addEventListener('input', updateGutter);
+  inputEl?.addEventListener('scroll', syncScroll);
+  updateGutter();
+
+  fixBtn?.addEventListener('click', doFix);
+  loadSampleBtn?.addEventListener('click', loadSample);
+  clearBtn?.addEventListener('click', clearAll);
+  copyBtn?.addEventListener('click', copyOutput);
+  downloadBtn?.addEventListener('click', downloadOutput);
+
+  // initial check for View more
+  rafRefresh();
+  setTimeout(refreshViewMore, 200);
+});
