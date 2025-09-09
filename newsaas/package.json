@@ -1,0 +1,15 @@
+{
+  "name": "syntax-me-nesting-fixer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static site that fixes HTML/CSS/JS indentation and nesting. Deployed on Vercel.",
+  "scripts": {
+    "start": "vercel dev",
+    "dev": "vercel dev",
+    "build": "echo \"Nothing to build for static site\"",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^1.0.0"
+  }
+}
