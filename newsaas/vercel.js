@@ -3,4 +3,5 @@
   "framework": null,
   "outputDirectory": ".",
   "cleanUrls": true
+
 }
