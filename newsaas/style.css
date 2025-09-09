@@ -1,3 +1,5 @@
+/* style.css — full file with dark themed scrollbars */
+
 :root {
   --bg: #0e0e0e;
   --panel: #1a1a1a;
@@ -10,6 +12,11 @@
   --radius: 8px;
   --shadow: 0 8px 28px rgba(0,0,0,.35);
   --max: 1060px;
+
+  /* Scrollbar theme */
+  --scrollbar-track: #121212;
+  --scrollbar-thumb: #2b2b2b;
+  --scrollbar-thumb-hover: #3a3a3a;
 }
 
 * { box-sizing: border-box; }
@@ -65,7 +72,7 @@ h1, h2 { color: var(--primary); margin: 0; }
 .btn.ghost { background: transparent; color: var(--primary); border-color: var(--primary); }
 .btn:hover { filter: brightness(1.03); }
 
-/* New: pill variant for "View more" */
+/* Pill variant for View more */
 .btn.pill { border-radius: 999px; padding: 8px 16px; }
 
 .code-editor { position: relative; background: var(--code); border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
@@ -82,7 +89,7 @@ textarea#input {
   padding: 10px 12px 10px 58px; caret-color: var(--primary); tab-size: 2;
 }
 
-/* Changed: fixed height so the box doesn't resize with content length */
+/* Fixed-height output so it doesn't resize with content length */
 .codeblock {
   height: 340px;
   min-height: 0;
@@ -143,4 +150,53 @@ textarea#input {
 @media (max-width: 700px){
   .codeblock { height: 280px; }
   .modal-card { height: 92vh; top: 4%; }
+}
+
+/* ---------- Dark Scrollbars (textarea, code blocks, modal code, line numbers) ---------- */
+
+/* Firefox */
+textarea#input,
+.codeblock,
+.modal-code,
+.line-numbers {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+/* WebKit (Chrome/Edge/Safari) */
+textarea#input::-webkit-scrollbar,
+.codeblock::-webkit-scrollbar,
+.modal-code::-webkit-scrollbar,
+.line-numbers::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+textarea#input::-webkit-scrollbar-track,
+.codeblock::-webkit-scrollbar-track,
+.modal-code::-webkit-scrollbar-track,
+.line-numbers::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+textarea#input::-webkit-scrollbar-thumb,
+.codeblock::-webkit-scrollbar-thumb,
+.modal-code::-webkit-scrollbar-thumb,
+.line-numbers::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
+  border: 1px solid #1a1a1a; /* blends with panel/border */
+}
+
+textarea#input::-webkit-scrollbar-thumb:hover,
+.codeblock::-webkit-scrollbar-thumb:hover,
+.modal-code::-webkit-scrollbar-thumb:hover,
+.line-numbers::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Hide scrollbar corner fill on code areas (WebKit) */
+.codeblock::-webkit-scrollbar-corner,
+.modal-code::-webkit-scrollbar-corner {
+  background: transparent;
 }
